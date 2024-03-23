@@ -3,9 +3,10 @@ Bump or change semantic version numbers.
 
 @author: David Hebert
 """
-import os
+from pathlib import Path
 import tomllib
 import re
+from fileinput import FileInput
 
 
 class VersionNumber:
@@ -15,19 +16,22 @@ class VersionNumber:
         self.span = span
 
     def __str__(self):
-        return f'{self.number}\t{self.filename}'
+        return f'\033[36m{self.number}\t\033[33m{self.filename}\033[37m'
 
 
 class Bumper:
     def __init__(self):
-        if self._find_bumpy():
-            self.files_to_bump = self.get_files_to_bump()
-            self.current_versions = self.get_current_version_numbers()
+        if self._find_bumpy_toml():
+            self.files_to_bump = self.read_bumpy_toml()
+            self.current_versions = self.read_current_version_numbers()
+        else:
+            raise FileNotFoundError('\033[31mbumpy.toml not found in current working directory.\033[37m')
 
-    def _find_bumpy(self):
-        return os.path.exists(os.path.join(os.getcwd(), 'bumpy.toml'))
+    def _find_bumpy_toml(self):
+        bumpy_toml = Path.cwd() / 'bumpy.toml'
+        return bumpy_toml.exists()
 
-    def get_files_to_bump(self):
+    def read_bumpy_toml(self) -> list[str]:
         with open("bumpy.toml", "rb") as f:
             files_to_bump = tomllib.load(f)['files_to_bump']
         return files_to_bump
@@ -36,75 +40,90 @@ class Bumper:
         pattern = r"['\"](\d+\.\d+\.\d+)['\"]"
         return re.search(pattern, content)
 
-    def get_current_version_numbers(self):
+    def read_current_version_numbers(self) -> list[VersionNumber]:
         version_numbers = []
-
-        for file in self.files_to_bump:
-            with open(file, 'r') as f:
-                content = f.read()
-
-            regex_match = self._match_regex(content)
-            version_numbers.append(VersionNumber(filename=file,
-                                                 version_number=regex_match[0],
-                                                 span=regex_match.span()))
+        for file_path in self.files_to_bump:
+            file = Path(file_path)
+            if file.exists() and file.is_file():
+                regex_match = self._match_regex(file.read_text())
+                if regex_match:
+                    version_numbers.append(VersionNumber(filename=file_path,
+                                                         version_number=regex_match.group(),
+                                                         span=regex_match.span()))
+            else:
+                print('\n\033[31mWarning: '
+                      + f'\033[37m File \033[36m{file_path}'
+                      + '\033[37m not found. Double-check path.')
+        if not version_numbers:
+            raise Exception('No version numbers founds. '
+                            + 'Check bumpy.toml is in current working directory '
+                            + 'and paths are correct.')
         return version_numbers
 
-    def print_current_versions(self):
-        print('\nCurrent Version Numbers:')
-        print('========================')
+    def print_current_version_numbers(self):
+        print('\nCurrent Version Numbers')
+        print('=' * len(max(map(str, self.current_versions))))
         for version in self.current_versions:
             print(version)
 
-    def _print_bumped_version(self, old_version, new_version):
-        print(f'{old_version.number}  --->  {new_version}\t{old_version.filename}')
+    def _format_version_number(self, reference_number: str, new_number: str) -> (str | None):
+        if reference_number.startswith("'"):
+            return f"'{new_number}'"
+        elif reference_number.startswith('"'):
+            return f'"{new_number}"'
 
-    def get_new_version_number(self):
-        self.print_current_versions()
+    def make_new_VersionNumbers(self, new_versions: list[str]) -> list[VersionNumber]:
+        new_version_numbers: list[VersionNumber] = []
+        for current, new_number in zip(self.current_versions, new_versions):
+            formatted_number = self._format_version_number(reference_number=current.number,
+                                                           new_number=new_number)
+            new_version_numbers.append(VersionNumber(filename=current.filename,
+                                                     version_number=formatted_number,
+                                                     span=current.span))
+        return new_version_numbers
+
+    def get_new_version_number(self) -> (list[VersionNumber] | None):
+        self.print_current_version_numbers()
         while True:
-            new_version = input('\nEnter a new version number or "q" to quit: ')
-            if new_version.strip().lower() == 'q':
+            new_version_number = input('\nEnter a new version number or "q" to quit: \033[32m')
+            print('\033[37m')
+            if new_version_number.strip().lower() == 'q':
                 return None
-            if self._match_regex(f"'{new_version}'"):
-                # print('\n')
-                return new_version
+            if self._match_regex(f"'{new_version_number}'"):
+                return self.make_new_VersionNumbers([new_version_number] * len(self.current_versions))
             else:
-                print('\n'
-                      + 'Incorrect version number format. '
+                print('Incorrect version number format. '
                       + 'Enter three sets of digits separated by periods.')
                 print('Example: 0.1.3 or 1.2.12')
 
-    def _format_version_number(self, reference, new_version):
-        if reference.startswith("'"):
-            formatted_new_version_number = f"'{new_version}'"
-        elif reference.startswith('"'):
-            formatted_new_version_number = f'"{new_version}"'
-        return formatted_new_version_number
+    def _print_bumped_version(self, new_version_numbers: list[VersionNumber]) -> None:
+        print('New Version Numbers')
+        print('=' * len(max(map(str, self.current_versions))))
+        for old, new in zip(self.current_versions, new_version_numbers):
+            print(f'\033[36m{old.number}  \033[37m--->  \033[32m{new.number}\t\033[33m{old.filename}\033[37m')
+        print('')
 
-    def set_version_numbers(self, new_version):
-        for version in self.current_versions:
-            formatted_new_version = self._format_version_number(reference=version.number,
-                                                                new_version=new_version)
-            with open(version.filename, 'r+') as f:
-                content = f.read()
-                content = content.replace(version.number,
-                                          formatted_new_version)
-                f.seek(0)
-                f.write(content)
-                f.truncate()
-            self._print_bumped_version(version, formatted_new_version)
+    def write_new_version_numbers(self, new_version_numbers: list[VersionNumber]) -> None:
+        for current, new in zip(self.current_versions, new_version_numbers):
+            with FileInput(current.filename, inplace=True) as f:
+                for line in f:
+                    print(line.replace(current.number, new.number), end='')
+        self._print_bumped_version(new_version_numbers)
 
-    def bump_version_numbers(self, major=0, minor=0, patch=0):
-        current_major, current_minor, current_patch = self.current_versions[0].number.strip('\"\'').split('.')
-        new_major = str(int(current_major) + major)
-        new_minor = str(int(current_minor) + minor)
-        new_patch = str(int(current_patch) + patch)
-        new_version = '.'.join([new_major, new_minor, new_patch])
-        if self._match_regex(f"'{new_version}'"):
-            self.set_version_numbers(new_version)
+    def bump_version_numbers(self, major: int = 0, minor: int = 0, patch: int = 0) -> None:
+        new_versions: list[str] = []
+        for current in self.current_versions:
+            current_major, current_minor, current_patch = map(int, current.number.strip('\"\'').split('.'))
+            new_number = '.'.join([str(current_major + major),
+                                   str(current_minor + minor),
+                                   str(current_patch + patch)])
+            if self._match_regex(f"'{new_number}'"):
+                new_versions.append(new_number)
+        self.write_new_version_numbers(self.make_new_VersionNumbers(new_versions))
 
 
 if __name__ == '__main__':
     bumpy = Bumper()
     new_version = bumpy.get_new_version_number()
     if new_version:
-        bumpy.set_version_numbers(new_version)
+        bumpy.write_new_version_numbers(new_version)
