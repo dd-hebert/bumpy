@@ -51,18 +51,11 @@ class CLI:
         Parsed command-line arguments.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.args = self.get_args()
         self.main()
 
-    def get_args(self):
-        """
-        Create an ``ArgumentParser`` and parse command line arguments.
-
-        Returns
-        -------
-        parser : :class:`argparse.ArgumentParser`
-        """
+    def get_args(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description='Bump or change version numbers.')
         help_msg = {
             'patch': '''Bump the patch version.''',
@@ -100,13 +93,13 @@ class CLI:
 
         return parser.parse_args()
 
-    def main(self):
+    def main(self) -> None:
         bumpy = Bumper()
         if self.args.version is True:
-            new_version = bumpy.get_new_version_number()
+            new_version = bumpy.input_new_version_number()
             if new_version:
-                bumpy.write_new_version_numbers(new_version)
-        elif [self.args.major, self.args.minor, self.args.major] == [0, 0, 0]:
+                bumpy.write_version_numbers(new_version)
+        elif [self.args.major, self.args.minor, self.args.patch] == [0, 0, 0]:
             bumpy.print_current_version_numbers()
         else:
             bumpy.bump_version_numbers(major=self.args.major,
