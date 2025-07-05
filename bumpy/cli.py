@@ -24,6 +24,8 @@ Command Line Arguments
         bumpy --minor    # bump minor version by 1
         bumpy --minor 2  # bump minor version by 2
 
+    Bumping the minor version will reset the patch version to 0.
+
 --major : int, optional
     Bump the major version. Default is 0 (arg not passed),
     or 1 (arg passed, no value given). Otherwise, bump
@@ -32,12 +34,16 @@ Command Line Arguments
         bumpy --major    # bump major version by 1
         bumpy --major 4  # bump major version by 4
 
+    Bumping the major version will reset the minor and patch versions to 0.
+
 --version : flag, optional
-    Pass this arg to give manually enter a new version number.
+    Pass this arg to manually enter a new version number.
 
 @author: David Hebert
 """
+
 import argparse
+
 from bumpy.bumpy import Bumper
 
 
@@ -57,39 +63,45 @@ class CLI:
 
     def get_args(self) -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(description='Bump or change version numbers.')
+        group = parser.add_mutually_exclusive_group()
         help_msg = {
-            'patch': '''Bump the patch version.''',
-            'minor': '''Bump the minor version.''',
-            'major': '''Bump the major version.''',
-            'version': '''Enter a new version number.'''}
+            'patch': """Bump the patch version.""",
+            'minor': """Bump the minor version.""",
+            'major': """Bump the major version.""",
+            'version': """Enter a new version number.""",
+        }
 
-        parser.add_argument('--patch',
-                            action='store',
-                            type=int,
-                            nargs='?',
-                            const=1,
-                            default=0,
-                            help=help_msg['patch'])
+        group.add_argument(
+            '--patch',
+            action='store',
+            type=int,
+            nargs='?',
+            const=1,
+            default=0,
+            help=help_msg['patch'],
+        )
 
-        parser.add_argument('--minor',
-                            action='store',
-                            type=int,
-                            nargs='?',
-                            const=1,
-                            default=0,
-                            help=help_msg['minor'])
+        group.add_argument(
+            '--minor',
+            action='store',
+            type=int,
+            nargs='?',
+            const=1,
+            default=0,
+            help=help_msg['minor'],
+        )
 
-        parser.add_argument('--major',
-                            action='store',
-                            type=int,
-                            nargs='?',
-                            const=1,
-                            default=0,
-                            help=help_msg['major'])
+        group.add_argument(
+            '--major',
+            action='store',
+            type=int,
+            nargs='?',
+            const=1,
+            default=0,
+            help=help_msg['major'],
+        )
 
-        parser.add_argument('--version',
-                            action='store_true',
-                            help=help_msg['version'])
+        group.add_argument('--version', action='store_true', help=help_msg['version'])
 
         return parser.parse_args()
 
@@ -99,12 +111,14 @@ class CLI:
             new_version = bumpy.input_new_version_number()
             if new_version:
                 bumpy.write_version_numbers(new_version)
-        elif [self.args.major, self.args.minor, self.args.patch] == [0, 0, 0]:
+        elif not any([self.args.major, self.args.minor, self.args.patch]):
             bumpy.print_current_version_numbers()
         else:
-            bumpy.bump_version_numbers(major=self.args.major,
-                                       minor=self.args.minor,
-                                       patch=self.args.patch)
+            bumpy.bump_version_numbers(
+                major=self.args.major,
+                minor=self.args.minor,
+                patch=self.args.patch,
+            )
 
 
 def main():
