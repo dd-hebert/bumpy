@@ -30,7 +30,7 @@ Prompts the user to enter a completely new version number.
 
 ### Examples
 ```
-bumpy --patch 1
+bumpy --patch
 ```
 Bump patch version by 1.
 ```
