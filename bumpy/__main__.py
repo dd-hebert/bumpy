@@ -3,13 +3,15 @@ Default entry point if running the package using ``python -m bumpy``.
 
 @author: David Hebert
 """
+
 import sys
-import bumpy.cli
+
+from bumpy.cli import CLI
 
 
 def main():
     """Run bumpy from cli script entry point."""
-    cli = bumpy.cli.CLI()
+    CLI()
     return 0
 
 
